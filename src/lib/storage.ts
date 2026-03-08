@@ -1,4 +1,30 @@
 const STORAGE_KEY = "fumoney-clicker-save";
+const BUY_MULTIPLIER_KEY = "fumoney-clicker-buy-multiplier";
+
+export type StoredBuyMultiplier = "1" | "5" | "10" | "25" | "100" | "max";
+
+const VALID_BUY_MULTIPLIERS: StoredBuyMultiplier[] = ["1", "5", "10", "25", "100", "max"];
+
+export function loadBuyMultiplier(): StoredBuyMultiplier {
+  if (typeof window === "undefined") return "1";
+  try {
+    const raw = localStorage.getItem(BUY_MULTIPLIER_KEY);
+    if (raw && VALID_BUY_MULTIPLIERS.includes(raw as StoredBuyMultiplier))
+      return raw as StoredBuyMultiplier;
+  } catch {
+    // ignore
+  }
+  return "1";
+}
+
+export function saveBuyMultiplier(value: StoredBuyMultiplier): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(BUY_MULTIPLIER_KEY, value);
+  } catch {
+    // ignore
+  }
+}
 
 export interface GameSave {
   balance: number;

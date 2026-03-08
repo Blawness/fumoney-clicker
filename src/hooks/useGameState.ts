@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { loadGame, saveGame, type GameSave } from "@/lib/storage";
-import { getUpgradeCost, UPGRADES } from "@/data/upgrades";
+import { getUpgradeCost, getTotalCostForMany, canBuyMore, getMaxLevel, UPGRADES } from "@/data/upgrades";
 import type { Upgrade } from "@/data/upgrades";
 import { GOALS } from "@/data/goals";
 
@@ -29,9 +29,19 @@ export function useGameState() {
   );
   const ipsMultiplier = 1 + totalIpsPercent / 100;
 
-  // Income per second: (base IPS * multiplier + auto clicks) * compound
+  // Income multiplier from "Income Multiplier" upgrade (bertahap hingga max level)
+  const incomeMultiplierPercent = UPGRADES.filter(
+    (u) => u.effectType === "income_multiplier"
+  ).reduce(
+    (sum, u) => sum + (ownedUpgrades[u.id] ?? 0) * u.effectValue,
+    0
+  );
+  const incomeMultiplier = 1 + incomeMultiplierPercent / 100;
+
+  // Income per second: (base IPS * multiplier + auto clicks) * compound * income multiplier
   const baseIncomePerSecond = ips * ipsMultiplier + acps * ipc;
-  const effectiveIncomePerSecond = baseIncomePerSecond * compoundMultiplier;
+  const effectiveIncomePerSecond =
+    baseIncomePerSecond * compoundMultiplier * incomeMultiplier;
 
   // Load once on mount
   useEffect(() => {
@@ -90,24 +100,46 @@ export function useGameState() {
   }, [ipc]);
 
   const buyUpgrade = useCallback(
-    (upgrade: Upgrade) => {
+    (upgrade: Upgrade, quantity: number = 1) => {
       const owned = ownedUpgrades[upgrade.id] ?? 0;
-      const cost = getUpgradeCost(upgrade.baseCost, owned);
-      if (balance < cost) return false;
+      const max = getMaxLevel(upgrade);
+      const maxBuy = max === 0 ? quantity : Math.min(quantity, max - owned);
+      if (maxBuy <= 0) return 0;
+      const cost = getTotalCostForMany(upgrade.baseCost, owned, maxBuy);
+      if (balance < cost) return 0;
       setBalance((b) => b - cost);
+      const newOwned = owned + maxBuy;
       setOwnedUpgrades((prev) => ({
         ...prev,
-        [upgrade.id]: (prev[upgrade.id] ?? 0) + 1,
+        [upgrade.id]: newOwned,
       }));
       if (upgrade.effectType === "ipc") {
-        setIpc((i) => i + upgrade.effectValue);
+        setIpc((i) => i + upgrade.effectValue * maxBuy);
       } else if (upgrade.effectType === "acps") {
-        setAcps((a) => a + upgrade.effectValue);
+        setAcps((a) => a + upgrade.effectValue * maxBuy);
       } else if (upgrade.effectType === "ips") {
-        setIps((i) => i + upgrade.effectValue);
+        setIps((i) => i + upgrade.effectValue * maxBuy);
       }
-      // ips_percent and compound: no direct state, computed from ownedUpgrades
-      return true;
+      return maxBuy;
+    },
+    [balance, ownedUpgrades]
+  );
+
+  /** How many of this upgrade can be bought with current balance (capped by max level). */
+  const getMaxAffordable = useCallback(
+    (upgrade: Upgrade): number => {
+      const owned = ownedUpgrades[upgrade.id] ?? 0;
+      if (!canBuyMore(upgrade, owned)) return 0;
+      const max = getMaxLevel(upgrade);
+      let n = 1;
+      while (true) {
+        const nextN = n + 1;
+        if (max > 0 && owned + nextN > max) break;
+        const cost = getTotalCostForMany(upgrade.baseCost, owned, nextN);
+        if (cost > balance) break;
+        n = nextN;
+      }
+      return n;
     },
     [balance, ownedUpgrades]
   );
@@ -143,11 +175,13 @@ export function useGameState() {
     acps,
     compoundMultiplier,
     ipsMultiplier,
+    incomeMultiplier,
     effectiveIncomePerSecond,
     ownedUpgrades,
     purchasedGoals,
     click,
     buyUpgrade,
+    getMaxAffordable,
     buyGoal,
     getNextGoal,
     progressToNextGoal,

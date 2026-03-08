@@ -1,14 +1,32 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { useGameState } from "@/hooks/useGameState";
+import { loadBuyMultiplier, saveBuyMultiplier, type StoredBuyMultiplier } from "@/lib/storage";
 import { BalanceDisplay } from "@/components/BalanceDisplay";
 import { ClickerButton } from "@/components/ClickerButton";
 import { ProgressToGoal } from "@/components/ProgressToGoal";
 import { UpgradesModal } from "@/components/UpgradesModal";
 import { FreedomShop } from "@/components/FreedomShop";
 import { GOALS } from "@/data/goals";
+import {
+  buyMultiplierFromStorage,
+  buyMultiplierToStorage,
+  type BuyMultiplier,
+} from "@/components/UpgradesList";
 
 export default function GamePage() {
+  const [buyMultiplier, setBuyMultiplierState] = useState<BuyMultiplier>(1);
+
+  useEffect(() => {
+    setBuyMultiplierState(buyMultiplierFromStorage(loadBuyMultiplier()));
+  }, []);
+
+  const setBuyMultiplier = (value: BuyMultiplier) => {
+    setBuyMultiplierState(value);
+    saveBuyMultiplier(buyMultiplierToStorage(value) as StoredBuyMultiplier);
+  };
+
   const {
     balance,
     ipc,
@@ -21,6 +39,7 @@ export default function GamePage() {
     purchasedGoals,
     click,
     buyUpgrade,
+    getMaxAffordable,
     buyGoal,
     progressToNextGoal,
   } = useGameState();
@@ -51,7 +70,10 @@ export default function GamePage() {
               <UpgradesModal
                 balance={balance}
                 ownedUpgrades={ownedUpgrades}
+                buyMultiplier={buyMultiplier}
+                onBuyMultiplierChange={setBuyMultiplier}
                 onBuy={buyUpgrade}
+                getMaxAffordable={getMaxAffordable}
               />
             </div>
             <BalanceDisplay balance={balance} />
