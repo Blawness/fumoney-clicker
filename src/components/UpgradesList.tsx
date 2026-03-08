@@ -17,6 +17,8 @@ import {
   Activity,
   Bitcoin,
   Percent,
+  Timer,
+  Sparkles,
   type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -63,6 +65,8 @@ const UPGRADE_ICONS: Record<string, LucideIcon> = {
   "nasdaq-qqq": Activity,
   "bitcoin-whale": Bitcoin,
   "compound-interest-mastery": Percent,
+  "combo-window": Timer,
+  "combo-multiplier": Sparkles,
 };
 
 interface UpgradesListProps {
@@ -94,6 +98,10 @@ function getEffectText(upgrade: Upgrade): string {
         ? `+${upgrade.effectValue}% income (max ${max} level)`
         : `+${upgrade.effectValue}% total income`;
     }
+    case "combo_window":
+      return `+${upgrade.effectValue}ms combo window (max ${getMaxLevel(upgrade)} level)`;
+    case "combo_multiplier":
+      return `+${upgrade.effectValue}% per combo step (max ${getMaxLevel(upgrade)} level)`;
     default:
       return "";
   }

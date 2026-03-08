@@ -10,6 +10,11 @@ const COMPOUND_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
 const SAVE_DEBOUNCE_MS = 400;
 
+/** Base time window (ms) to keep combo alive. Extended by combo_window upgrade. */
+const COMBO_WINDOW_BASE_MS = 1200;
+/** Base bonus multiplier per combo step (e.g. 2nd hit = 1 + 0.25). Increased by combo_multiplier upgrade. */
+const COMBO_STEP_BASE = 0.25;
+
 export function useGameState() {
   const [balance, setBalance] = useState(0);
   const [ipc, setIpc] = useState(1);
@@ -18,6 +23,10 @@ export function useGameState() {
   const [compoundMultiplier, setCompoundMultiplier] = useState(1);
   const [ownedUpgrades, setOwnedUpgrades] = useState<Record<string, number>>({});
   const [purchasedGoals, setPurchasedGoals] = useState<string[]>([]);
+  const [combo, setCombo] = useState(0);
+  const lastClickTime = useRef(0);
+  const comboRef = useRef(0);
+  const comboDecayTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const initialized = useRef(false);
 
   // Total IPS % from Investor upgrades (e.g. 5+10+15 = 30 => 1.30x)
@@ -94,10 +103,42 @@ export function useGameState() {
     return () => clearInterval(interval);
   }, [hasCompoundUpgrade]);
 
+  // Combo window (ms): base + upgrade bonus
+  const comboWindowMs =
+    COMBO_WINDOW_BASE_MS +
+    (ownedUpgrades["combo-window"] ?? 0) * (UPGRADES.find((u) => u.id === "combo-window")?.effectValue ?? 150);
+
+  // Combo step multiplier: base + upgrade bonus (e.g. 0.25 + 0.03 per level)
+  const comboStepBonus =
+    COMBO_STEP_BASE +
+    (ownedUpgrades["combo-multiplier"] ?? 0) * ((UPGRADES.find((u) => u.id === "combo-multiplier")?.effectValue ?? 3) / 100);
+
   const click = useCallback(() => {
-    setBalance((b) => b + ipc);
-    return ipc;
-  }, [ipc]);
+    const now = Date.now();
+    const prevCombo = comboRef.current;
+    const nextCombo =
+      now - lastClickTime.current <= comboWindowMs && prevCombo >= 1
+        ? prevCombo + 1
+        : 1;
+    lastClickTime.current = now;
+    comboRef.current = nextCombo;
+    setCombo(nextCombo);
+
+    if (comboDecayTimeout.current) {
+      clearTimeout(comboDecayTimeout.current);
+      comboDecayTimeout.current = null;
+    }
+    comboDecayTimeout.current = setTimeout(() => {
+      comboRef.current = 0;
+      setCombo(0);
+      comboDecayTimeout.current = null;
+    }, comboWindowMs);
+
+    const multiplier = nextCombo <= 1 ? 1 : 1 + (nextCombo - 1) * comboStepBonus;
+    const reward = ipc * multiplier;
+    setBalance((b) => b + reward);
+    return { value: reward, combo: nextCombo, multiplier };
+  }, [ipc, comboWindowMs, comboStepBonus]);
 
   const buyUpgrade = useCallback(
     (upgrade: Upgrade, quantity: number = 1) => {
@@ -179,6 +220,7 @@ export function useGameState() {
     effectiveIncomePerSecond,
     ownedUpgrades,
     purchasedGoals,
+    combo,
     click,
     buyUpgrade,
     getMaxAffordable,

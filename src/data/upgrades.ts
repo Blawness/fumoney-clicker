@@ -1,4 +1,4 @@
-export type UpgradeEffectType = "ipc" | "ips" | "acps" | "ips_percent" | "compound" | "income_multiplier";
+export type UpgradeEffectType = "ipc" | "ips" | "acps" | "ips_percent" | "compound" | "income_multiplier" | "combo_window" | "combo_multiplier";
 
 export type UpgradeCategory = "builder" | "founder" | "investor";
 
@@ -39,6 +39,8 @@ export const UPGRADES_INVESTOR: Upgrade[] = [
   { id: "nasdaq-qqq", name: "Nasdaq 100 (QQQ)", category: "investor", effectType: "ips_percent", effectValue: 15, baseCost: 250_000 },
   { id: "bitcoin-whale", name: "Bitcoin Whale", category: "investor", effectType: "ips_percent", effectValue: 50, baseCost: 2_000_000 },
   { id: "compound-interest-mastery", name: "Compound Interest Mastery", category: "investor", effectType: "compound", effectValue: 1, baseCost: 10_000_000 },
+  { id: "combo-window", name: "Combo Window", category: "investor", effectType: "combo_window", effectValue: 150, baseCost: 15_000, maxLevel: 10 },
+  { id: "combo-multiplier", name: "Combo Multiplier", category: "investor", effectType: "combo_multiplier", effectValue: 3, baseCost: 50_000, maxLevel: 15 },
 ];
 
 export const UPGRADES: Upgrade[] = [

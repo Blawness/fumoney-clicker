@@ -37,6 +37,7 @@ export default function GamePage() {
     effectiveIncomePerSecond,
     ownedUpgrades,
     purchasedGoals,
+    combo,
     click,
     buyUpgrade,
     getMaxAffordable,
@@ -82,6 +83,11 @@ export default function GamePage() {
               {ipsMultiplier > 1 && ` (${ipsMultiplier.toFixed(1)}× IPS)`}
               {compoundMultiplier > 1 && ` · ${compoundMultiplier}× compound`}
               {acps > 0 && ` · ${acps} auto/s`}
+              {combo > 1 && (
+                <span className="ml-1 inline-flex items-center rounded bg-amber-500/20 px-1.5 py-0.5 font-semibold text-amber-400">
+                  Combo ×{combo}
+                </span>
+              )}
             </p>
           </div>
         </header>
@@ -95,7 +101,7 @@ export default function GamePage() {
 
         {/* Click area + progress */}
         <section className="flex flex-col items-center gap-6">
-          <ClickerButton onClick={click} />
+          <ClickerButton onClick={click} combo={combo} />
           <div className="w-full max-w-md">
             <ProgressToGoal goal={nextGoal} progress={progress} />
           </div>
