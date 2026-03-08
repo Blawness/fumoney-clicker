@@ -4,9 +4,8 @@ import { useGameState } from "@/hooks/useGameState";
 import { BalanceDisplay } from "@/components/BalanceDisplay";
 import { ClickerButton } from "@/components/ClickerButton";
 import { ProgressToGoal } from "@/components/ProgressToGoal";
-import { UpgradesList } from "@/components/UpgradesList";
+import { UpgradesModal } from "@/components/UpgradesModal";
 import { FreedomShop } from "@/components/FreedomShop";
-import { UPGRADES } from "@/data/upgrades";
 import { GOALS } from "@/data/goals";
 
 export default function GamePage() {
@@ -14,6 +13,10 @@ export default function GamePage() {
     balance,
     ipc,
     ips,
+    acps,
+    compoundMultiplier,
+    ipsMultiplier,
+    effectiveIncomePerSecond,
     ownedUpgrades,
     purchasedGoals,
     click,
@@ -43,10 +46,20 @@ export default function GamePage() {
           <h1 className="text-2xl font-bold tracking-tight text-zinc-100 md:text-3xl">
             The Fuck You Money Clicker
           </h1>
-          <div className="flex flex-col items-center gap-1 sm:items-end">
+          <div className="flex flex-col items-center gap-2 sm:items-end">
+            <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-end">
+              <UpgradesModal
+                balance={balance}
+                ownedUpgrades={ownedUpgrades}
+                onBuy={buyUpgrade}
+              />
+            </div>
             <BalanceDisplay balance={balance} />
             <p className="text-xs text-muted-foreground">
-              +{ipc} IPC · {ips}/s IPS
+              +{ipc} IPC · {Math.floor(effectiveIncomePerSecond)}/s
+              {ipsMultiplier > 1 && ` (${ipsMultiplier.toFixed(1)}× IPS)`}
+              {compoundMultiplier > 1 && ` · ${compoundMultiplier}× compound`}
+              {acps > 0 && ` · ${acps} auto/s`}
             </p>
           </div>
         </header>
@@ -64,16 +77,6 @@ export default function GamePage() {
           <div className="w-full max-w-md">
             <ProgressToGoal goal={nextGoal} progress={progress} />
           </div>
-        </section>
-
-        {/* Upgrades */}
-        <section>
-          <UpgradesList
-            upgrades={UPGRADES}
-            balance={balance}
-            ownedUpgrades={ownedUpgrades}
-            onBuy={buyUpgrade}
-          />
         </section>
 
         {/* Freedom Shop */}
