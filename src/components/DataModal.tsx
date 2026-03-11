@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState, useEffect } from "react";
 import { Database, Download, Upload } from "lucide-react";
 import {
   Dialog,
@@ -15,10 +15,22 @@ import { exportGameToJson, importGameFromJson, type GameSave } from "@/lib/stora
 interface DataModalProps {
   currentSave: () => GameSave;
   onImport: (save: GameSave) => void;
+  playerName: string;
+  onPlayerNameChange: (name: string) => void;
 }
 
-export function DataModal({ currentSave, onImport }: DataModalProps) {
+export function DataModal({ currentSave, onImport, playerName, onPlayerNameChange }: DataModalProps) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const [nameInput, setNameInput] = useState(playerName);
+
+  useEffect(() => {
+    setNameInput(playerName);
+  }, [playerName]);
+
+  const handleNameSave = () => {
+    const trimmed = nameInput.trim();
+    onPlayerNameChange(trimmed);
+  };
 
   const handleExport = () => {
     const save = currentSave();
@@ -65,6 +77,23 @@ export function DataModal({ currentSave, onImport }: DataModalProps) {
           </DialogTitle>
         </DialogHeader>
         <div className="flex flex-col gap-2">
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">Player name</label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={nameInput}
+                onChange={(e) => setNameInput(e.target.value)}
+                onBlur={handleNameSave}
+                placeholder="Your name"
+                className="flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                maxLength={32}
+              />
+              <Button variant="outline" size="sm" onClick={handleNameSave}>
+                Save
+              </Button>
+            </div>
+          </div>
           <Button variant="outline" className="w-full justify-start gap-2" onClick={handleExport}>
             <Download className="size-4" />
             Export save (JSON)

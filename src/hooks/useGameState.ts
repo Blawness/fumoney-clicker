@@ -39,6 +39,7 @@ export function useGameState() {
   const [rebirthCount, setRebirthCount] = useState(0);
   const [rebirthPoints, setRebirthPoints] = useState(0);
   const [ownedRebirthUpgrades, setOwnedRebirthUpgrades] = useState<Record<string, number>>({});
+  const [playerName, setPlayerName] = useState<string>("");
   const [offlineEarned, setOfflineEarned] = useState(0);
   const lastClickTime = useRef(0);
   const comboRef = useRef(0);
@@ -99,6 +100,7 @@ export function useGameState() {
     setRebirthCount(save.rebirthCount ?? 0);
     setRebirthPoints(save.rebirthPoints ?? 0);
     setOwnedRebirthUpgrades(save.ownedRebirthUpgrades ?? {});
+    setPlayerName(save.playerName ?? "");
     if (offlineAmount > 0) setOfflineEarned(offlineAmount);
     initialized.current = true;
   }, []);
@@ -120,10 +122,11 @@ export function useGameState() {
         rebirthCount,
         rebirthPoints,
         ownedRebirthUpgrades,
+        playerName: playerName.trim() || undefined,
       });
     }, SAVE_DEBOUNCE_MS);
     return () => clearTimeout(t);
-  }, [balance, ipc, ips, acps, compoundMultiplier, ownedUpgrades, purchasedGoals, stats, unlockedAchievements, rebirthCount, rebirthPoints, ownedRebirthUpgrades]);
+  }, [balance, ipc, ips, acps, compoundMultiplier, ownedUpgrades, purchasedGoals, stats, unlockedAchievements, rebirthCount, rebirthPoints, ownedRebirthUpgrades, playerName]);
 
   // Income tick every second
   useEffect(() => {
@@ -358,8 +361,9 @@ export function useGameState() {
     rebirthCount,
     rebirthPoints,
     ownedRebirthUpgrades,
+    playerName: playerName.trim() || undefined,
     lastSaveTimestamp: Date.now(),
-  }), [balance, ipc, ips, acps, compoundMultiplier, ownedUpgrades, purchasedGoals, stats, unlockedAchievements, rebirthCount, rebirthPoints, ownedRebirthUpgrades]);
+  }), [balance, ipc, ips, acps, compoundMultiplier, ownedUpgrades, purchasedGoals, stats, unlockedAchievements, rebirthCount, rebirthPoints, ownedRebirthUpgrades, playerName]);
 
   const replaceWithSave = useCallback((save: GameSave) => {
     setBalance(save.balance);
@@ -374,6 +378,7 @@ export function useGameState() {
     setRebirthCount(save.rebirthCount ?? 0);
     setRebirthPoints(save.rebirthPoints ?? 0);
     setOwnedRebirthUpgrades(save.ownedRebirthUpgrades ?? {});
+    setPlayerName(save.playerName ?? "");
   }, []);
 
   return {
@@ -393,6 +398,8 @@ export function useGameState() {
     rebirthCount,
     rebirthPoints,
     ownedRebirthUpgrades,
+    playerName,
+    setPlayerName,
     offlineEarned,
     clearOfflineBanner,
     getCurrentSave,

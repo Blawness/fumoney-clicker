@@ -11,6 +11,8 @@ import { FreedomShop } from "@/components/FreedomShop";
 import { AchievementsModal } from "@/components/AchievementsModal";
 import { StatsModal } from "@/components/StatsModal";
 import { DataModal } from "@/components/DataModal";
+import { PlayerNameEdit } from "@/components/PlayerNameEdit";
+import { LeaderboardModal } from "@/components/LeaderboardModal";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { RebirthPanel } from "@/components/RebirthPanel";
 import { GOALS } from "@/data/goals";
@@ -48,6 +50,8 @@ export default function GamePage() {
     rebirthCount,
     rebirthPoints,
     ownedRebirthUpgrades,
+    playerName,
+    setPlayerName,
     offlineEarned,
     clearOfflineBanner,
     getCurrentSave,
@@ -99,9 +103,16 @@ export default function GamePage() {
                 getMaxAffordable={getMaxAffordable}
               />
               <StatsModal stats={stats} />
+              <LeaderboardModal playerName={playerName} totalEarned={stats.totalEarned} />
               <AchievementsModal unlockedAchievements={unlockedAchievements} />
-              <DataModal currentSave={getCurrentSave} onImport={handleImportSave} />
+              <DataModal
+                currentSave={getCurrentSave}
+                onImport={handleImportSave}
+                playerName={playerName}
+                onPlayerNameChange={setPlayerName}
+              />
             </div>
+            <PlayerNameEdit playerName={playerName} onSave={setPlayerName} />
             <RebirthPanel
               totalEarned={stats.totalEarned}
               rebirthCount={rebirthCount}

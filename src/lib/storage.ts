@@ -60,6 +60,8 @@ export interface GameSave {
   rebirthPoints?: number;
   /** Rebirth: level per permanent upgrade id */
   ownedRebirthUpgrades?: Record<string, number>;
+  /** Custom player display name */
+  playerName?: string;
 }
 
 const DEFAULT_SAVE: GameSave = {
@@ -76,6 +78,7 @@ const DEFAULT_SAVE: GameSave = {
   rebirthCount: 0,
   rebirthPoints: 0,
   ownedRebirthUpgrades: {},
+  playerName: undefined,
 };
 
 function normalizeStats(parsed: Partial<GameSave>): GameStats {
@@ -123,6 +126,10 @@ export function loadGame(): GameSave {
         parsed.ownedRebirthUpgrades && typeof parsed.ownedRebirthUpgrades === "object"
           ? parsed.ownedRebirthUpgrades
           : {},
+      playerName:
+        typeof parsed.playerName === "string" && parsed.playerName.trim() !== ""
+          ? parsed.playerName.trim()
+          : undefined,
     };
   } catch {
     return DEFAULT_SAVE;
@@ -138,6 +145,7 @@ export function saveGame(save: GameSave): void {
       rebirthCount: save.rebirthCount ?? 0,
       rebirthPoints: save.rebirthPoints ?? 0,
       ownedRebirthUpgrades: save.ownedRebirthUpgrades ?? {},
+      playerName: typeof save.playerName === "string" && save.playerName.trim() !== "" ? save.playerName.trim() : undefined,
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
   } catch {
@@ -183,6 +191,7 @@ export function importGameFromJson(json: string): GameSave | null {
       rebirthCount: typeof s.rebirthCount === "number" ? s.rebirthCount : 0,
       rebirthPoints: typeof s.rebirthPoints === "number" ? s.rebirthPoints : 0,
       ownedRebirthUpgrades: s.ownedRebirthUpgrades && typeof s.ownedRebirthUpgrades === "object" ? s.ownedRebirthUpgrades : {},
+      playerName: typeof s.playerName === "string" && s.playerName.trim() !== "" ? s.playerName.trim() : undefined,
     };
   } catch {
     return null;
