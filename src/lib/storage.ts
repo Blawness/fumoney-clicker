@@ -26,6 +26,20 @@ export function saveBuyMultiplier(value: StoredBuyMultiplier): void {
   }
 }
 
+export interface GameStats {
+  totalClicks: number;
+  totalEarned: number;
+  playTimeMs: number;
+  highestCombo: number;
+}
+
+export const DEFAULT_STATS: GameStats = {
+  totalClicks: 0,
+  totalEarned: 0,
+  playTimeMs: 0,
+  highestCombo: 0,
+};
+
 export interface GameSave {
   balance: number;
   ipc: number;
@@ -34,6 +48,12 @@ export interface GameSave {
   compoundMultiplier: number;
   ownedUpgrades: Record<string, number>;
   purchasedGoals: string[];
+  /** Stats: total clicks, total earned (lifetime), play time, highest combo */
+  stats?: GameStats;
+  /** Unlocked achievement IDs */
+  unlockedAchievements?: string[];
+  /** Timestamp (ms) when save was last written – for offline progress */
+  lastSaveTimestamp?: number;
 }
 
 const DEFAULT_SAVE: GameSave = {
@@ -44,7 +64,22 @@ const DEFAULT_SAVE: GameSave = {
   compoundMultiplier: 1,
   ownedUpgrades: {},
   purchasedGoals: [],
+  stats: DEFAULT_STATS,
+  unlockedAchievements: [],
+  lastSaveTimestamp: 0,
 };
+
+function normalizeStats(parsed: Partial<GameSave>): GameStats {
+  const s = parsed.stats;
+  if (s && typeof s === "object")
+    return {
+      totalClicks: typeof s.totalClicks === "number" ? s.totalClicks : DEFAULT_STATS.totalClicks,
+      totalEarned: typeof s.totalEarned === "number" ? s.totalEarned : DEFAULT_STATS.totalEarned,
+      playTimeMs: typeof s.playTimeMs === "number" ? s.playTimeMs : DEFAULT_STATS.playTimeMs,
+      highestCombo: typeof s.highestCombo === "number" ? s.highestCombo : DEFAULT_STATS.highestCombo,
+    };
+  return DEFAULT_STATS;
+}
 
 export function loadGame(): GameSave {
   if (typeof window === "undefined") return DEFAULT_SAVE;
@@ -67,6 +102,12 @@ export function loadGame(): GameSave {
           : DEFAULT_SAVE.ownedUpgrades,
       purchasedGoals:
         Array.isArray(parsed.purchasedGoals) ? parsed.purchasedGoals : DEFAULT_SAVE.purchasedGoals,
+      stats: normalizeStats(parsed),
+      unlockedAchievements: Array.isArray(parsed.unlockedAchievements)
+        ? parsed.unlockedAchievements
+        : DEFAULT_SAVE.unlockedAchievements!,
+      lastSaveTimestamp:
+        typeof parsed.lastSaveTimestamp === "number" ? parsed.lastSaveTimestamp : 0,
     };
   } catch {
     return DEFAULT_SAVE;
@@ -76,8 +117,53 @@ export function loadGame(): GameSave {
 export function saveGame(save: GameSave): void {
   if (typeof window === "undefined") return;
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(save));
+    const toSave: GameSave = {
+      ...save,
+      lastSaveTimestamp: Date.now(),
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
   } catch {
     // ignore
+  }
+}
+
+/** Full export payload for download / backup */
+export interface ExportSave {
+  version: number;
+  exportedAt: number;
+  save: GameSave;
+}
+
+const EXPORT_VERSION = 1;
+
+export function exportGameToJson(save: GameSave): string {
+  const payload: ExportSave = {
+    version: EXPORT_VERSION,
+    exportedAt: Date.now(),
+    save: { ...save, lastSaveTimestamp: save.lastSaveTimestamp ?? Date.now() },
+  };
+  return JSON.stringify(payload, null, 2);
+}
+
+export function importGameFromJson(json: string): GameSave | null {
+  try {
+    const payload = JSON.parse(json) as ExportSave;
+    if (!payload || typeof payload.save !== "object") return null;
+    const s = payload.save;
+    return {
+      balance: typeof s.balance === "number" ? s.balance : DEFAULT_SAVE.balance,
+      ipc: typeof s.ipc === "number" ? s.ipc : DEFAULT_SAVE.ipc,
+      ips: typeof s.ips === "number" ? s.ips : DEFAULT_SAVE.ips,
+      acps: typeof s.acps === "number" ? s.acps : DEFAULT_SAVE.acps,
+      compoundMultiplier:
+        typeof s.compoundMultiplier === "number" ? s.compoundMultiplier : DEFAULT_SAVE.compoundMultiplier,
+      ownedUpgrades: s.ownedUpgrades && typeof s.ownedUpgrades === "object" ? s.ownedUpgrades : DEFAULT_SAVE.ownedUpgrades,
+      purchasedGoals: Array.isArray(s.purchasedGoals) ? s.purchasedGoals : DEFAULT_SAVE.purchasedGoals,
+      stats: normalizeStats(s),
+      unlockedAchievements: Array.isArray(s.unlockedAchievements) ? s.unlockedAchievements : DEFAULT_SAVE.unlockedAchievements!,
+      lastSaveTimestamp: typeof s.lastSaveTimestamp === "number" ? s.lastSaveTimestamp : 0,
+    };
+  } catch {
+    return null;
   }
 }

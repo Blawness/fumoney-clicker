@@ -2,12 +2,16 @@
 
 import { useState, useEffect } from "react";
 import { useGameState } from "@/hooks/useGameState";
-import { loadBuyMultiplier, saveBuyMultiplier, type StoredBuyMultiplier } from "@/lib/storage";
+import { loadBuyMultiplier, saveBuyMultiplier, saveGame, type GameSave, type StoredBuyMultiplier } from "@/lib/storage";
 import { BalanceDisplay } from "@/components/BalanceDisplay";
 import { ClickerButton } from "@/components/ClickerButton";
 import { ProgressToGoal } from "@/components/ProgressToGoal";
 import { UpgradesModal } from "@/components/UpgradesModal";
 import { FreedomShop } from "@/components/FreedomShop";
+import { AchievementsModal } from "@/components/AchievementsModal";
+import { StatsModal } from "@/components/StatsModal";
+import { DataModal } from "@/components/DataModal";
+import { OfflineBanner } from "@/components/OfflineBanner";
 import { GOALS } from "@/data/goals";
 import {
   buyMultiplierFromStorage,
@@ -38,12 +42,23 @@ export default function GamePage() {
     ownedUpgrades,
     purchasedGoals,
     combo,
+    stats,
+    unlockedAchievements,
+    offlineEarned,
+    clearOfflineBanner,
+    getCurrentSave,
+    replaceWithSave,
     click,
     buyUpgrade,
     getMaxAffordable,
     buyGoal,
     progressToNextGoal,
   } = useGameState();
+
+  const handleImportSave = (save: GameSave) => {
+    replaceWithSave(save);
+    saveGame(save);
+  };
 
   const { goal: nextGoal, progress } = progressToNextGoal();
   const highestGoal = [...GOALS].reverse().find((g) =>
@@ -76,6 +91,9 @@ export default function GamePage() {
                 onBuy={buyUpgrade}
                 getMaxAffordable={getMaxAffordable}
               />
+              <StatsModal stats={stats} />
+              <AchievementsModal unlockedAchievements={unlockedAchievements} />
+              <DataModal currentSave={getCurrentSave} onImport={handleImportSave} />
             </div>
             <BalanceDisplay balance={balance} />
             <p className="text-xs text-muted-foreground">
@@ -91,6 +109,9 @@ export default function GamePage() {
             </p>
           </div>
         </header>
+
+        {/* Offline earnings banner */}
+        <OfflineBanner earned={offlineEarned} onDismiss={clearOfflineBanner} />
 
         {/* Status banner when a goal is reached */}
         {highestGoal && (

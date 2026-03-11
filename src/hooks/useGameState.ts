@@ -1,10 +1,12 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { loadGame, saveGame, type GameSave } from "@/lib/storage";
+import { loadGame, saveGame, type GameSave, DEFAULT_STATS, type GameStats } from "@/lib/storage";
 import { getUpgradeCost, getTotalCostForMany, canBuyMore, getMaxLevel, UPGRADES } from "@/data/upgrades";
 import type { Upgrade } from "@/data/upgrades";
 import { GOALS } from "@/data/goals";
+import { getOfflineEarnings } from "@/lib/offlineEarnings";
+import { getNewlyUnlocked } from "@/data/achievements";
 
 const COMPOUND_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
@@ -24,6 +26,9 @@ export function useGameState() {
   const [ownedUpgrades, setOwnedUpgrades] = useState<Record<string, number>>({});
   const [purchasedGoals, setPurchasedGoals] = useState<string[]>([]);
   const [combo, setCombo] = useState(0);
+  const [stats, setStats] = useState<GameStats>(DEFAULT_STATS);
+  const [unlockedAchievements, setUnlockedAchievements] = useState<string[]>([]);
+  const [offlineEarned, setOfflineEarned] = useState(0);
   const lastClickTime = useRef(0);
   const comboRef = useRef(0);
   const comboDecayTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -52,21 +57,27 @@ export function useGameState() {
   const effectiveIncomePerSecond =
     baseIncomePerSecond * compoundMultiplier * incomeMultiplier;
 
-  // Load once on mount
+  // Load once on mount + apply offline progress
   useEffect(() => {
     if (typeof window === "undefined" || initialized.current) return;
     const save = loadGame();
-    setBalance(save.balance);
+    const { earned: offlineAmount, secondsAway } = getOfflineEarnings(save);
+    const newBalance = save.balance + offlineAmount;
+    const baseStats = save.stats ?? DEFAULT_STATS;
+    setBalance(newBalance);
     setIpc(save.ipc);
     setIps(save.ips);
     setAcps(save.acps);
     setCompoundMultiplier(save.compoundMultiplier);
     setOwnedUpgrades(save.ownedUpgrades);
     setPurchasedGoals(save.purchasedGoals);
+    setStats({ ...baseStats, totalEarned: baseStats.totalEarned + offlineAmount });
+    setUnlockedAchievements(save.unlockedAchievements ?? []);
+    if (offlineAmount > 0) setOfflineEarned(offlineAmount);
     initialized.current = true;
   }, []);
 
-  // Persist with debounce
+  // Persist with debounce (lastSaveTimestamp set inside saveGame)
   useEffect(() => {
     if (!initialized.current) return;
     const t = setTimeout(() => {
@@ -78,19 +89,31 @@ export function useGameState() {
         compoundMultiplier,
         ownedUpgrades,
         purchasedGoals,
+        stats,
+        unlockedAchievements,
       });
     }, SAVE_DEBOUNCE_MS);
     return () => clearTimeout(t);
-  }, [balance, ipc, ips, acps, compoundMultiplier, ownedUpgrades, purchasedGoals]);
+  }, [balance, ipc, ips, acps, compoundMultiplier, ownedUpgrades, purchasedGoals, stats, unlockedAchievements]);
 
   // Income tick every second
   useEffect(() => {
     if (effectiveIncomePerSecond <= 0) return;
     const interval = setInterval(() => {
       setBalance((b) => b + effectiveIncomePerSecond);
+      setStats((s) => ({ ...s, totalEarned: s.totalEarned + effectiveIncomePerSecond }));
     }, 1000);
     return () => clearInterval(interval);
   }, [effectiveIncomePerSecond]);
+
+  // Play time: +1s every second
+  useEffect(() => {
+    if (!initialized.current) return;
+    const interval = setInterval(() => {
+      setStats((s) => ({ ...s, playTimeMs: s.playTimeMs + 1000 }));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Compound Interest Mastery: double income every 5 minutes
   const hasCompoundUpgrade =
@@ -137,6 +160,12 @@ export function useGameState() {
     const multiplier = nextCombo <= 1 ? 1 : 1 + (nextCombo - 1) * comboStepBonus;
     const reward = ipc * multiplier;
     setBalance((b) => b + reward);
+    setStats((s) => ({
+      ...s,
+      totalClicks: s.totalClicks + 1,
+      totalEarned: s.totalEarned + reward,
+      highestCombo: Math.max(s.highestCombo, nextCombo),
+    }));
     return { value: reward, combo: nextCombo, multiplier };
   }, [ipc, comboWindowMs, comboStepBonus]);
 
@@ -185,6 +214,19 @@ export function useGameState() {
     [balance, ownedUpgrades]
   );
 
+  // Achievement check: unlock any newly satisfied
+  useEffect(() => {
+    if (!initialized.current) return;
+    const added = getNewlyUnlocked(unlockedAchievements, {
+      totalEarned: stats.totalEarned,
+      highestCombo: stats.highestCombo,
+      purchasedGoals,
+      ownedUpgrades,
+    });
+    if (added.length > 0)
+      setUnlockedAchievements((prev) => [...prev, ...added]);
+  }, [stats.totalEarned, stats.highestCombo, purchasedGoals, ownedUpgrades, unlockedAchievements]);
+
   const buyGoal = useCallback(
     (goalId: string) => {
       const goal = GOALS.find((g) => g.id === goalId);
@@ -209,6 +251,33 @@ export function useGameState() {
     return { goal: next, progress };
   }, [balance, getNextGoal]);
 
+  const clearOfflineBanner = useCallback(() => setOfflineEarned(0), []);
+
+  const getCurrentSave = useCallback((): GameSave => ({
+    balance,
+    ipc,
+    ips,
+    acps,
+    compoundMultiplier,
+    ownedUpgrades,
+    purchasedGoals,
+    stats,
+    unlockedAchievements,
+    lastSaveTimestamp: Date.now(),
+  }), [balance, ipc, ips, acps, compoundMultiplier, ownedUpgrades, purchasedGoals, stats, unlockedAchievements]);
+
+  const replaceWithSave = useCallback((save: GameSave) => {
+    setBalance(save.balance);
+    setIpc(save.ipc);
+    setIps(save.ips);
+    setAcps(save.acps);
+    setCompoundMultiplier(save.compoundMultiplier);
+    setOwnedUpgrades(save.ownedUpgrades ?? {});
+    setPurchasedGoals(save.purchasedGoals ?? []);
+    setStats(save.stats ?? DEFAULT_STATS);
+    setUnlockedAchievements(save.unlockedAchievements ?? []);
+  }, []);
+
   return {
     balance,
     ipc,
@@ -221,6 +290,12 @@ export function useGameState() {
     ownedUpgrades,
     purchasedGoals,
     combo,
+    stats,
+    unlockedAchievements,
+    offlineEarned,
+    clearOfflineBanner,
+    getCurrentSave,
+    replaceWithSave,
     click,
     buyUpgrade,
     getMaxAffordable,
