@@ -13,6 +13,7 @@ import { StatsModal } from "@/components/StatsModal";
 import { DataModal } from "@/components/DataModal";
 import { PlayerNameEdit } from "@/components/PlayerNameEdit";
 import { LeaderboardModal } from "@/components/LeaderboardModal";
+import { TerminalMock } from "@/components/TerminalMock";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { RebirthPanel } from "@/components/RebirthPanel";
 import { GOALS } from "@/data/goals";
@@ -152,6 +153,9 @@ export default function GamePage() {
           <ClickerButton onClick={click} combo={combo} />
           <div className="w-full max-w-md">
             <ProgressToGoal goal={nextGoal} progress={progress} />
+          </div>
+          <div className="w-full max-w-2xl">
+            <TerminalMock />
           </div>
         </section>
 
