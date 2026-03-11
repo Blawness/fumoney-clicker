@@ -12,6 +12,7 @@ import { AchievementsModal } from "@/components/AchievementsModal";
 import { StatsModal } from "@/components/StatsModal";
 import { DataModal } from "@/components/DataModal";
 import { OfflineBanner } from "@/components/OfflineBanner";
+import { RebirthPanel } from "@/components/RebirthPanel";
 import { GOALS } from "@/data/goals";
 import {
   buyMultiplierFromStorage,
@@ -44,6 +45,9 @@ export default function GamePage() {
     combo,
     stats,
     unlockedAchievements,
+    rebirthCount,
+    rebirthPoints,
+    ownedRebirthUpgrades,
     offlineEarned,
     clearOfflineBanner,
     getCurrentSave,
@@ -51,6 +55,9 @@ export default function GamePage() {
     click,
     buyUpgrade,
     getMaxAffordable,
+    doRebirth,
+    buyRebirthUpgrade,
+    getMaxAffordableRebirth,
     buyGoal,
     progressToNextGoal,
   } = useGameState();
@@ -95,6 +102,15 @@ export default function GamePage() {
               <AchievementsModal unlockedAchievements={unlockedAchievements} />
               <DataModal currentSave={getCurrentSave} onImport={handleImportSave} />
             </div>
+            <RebirthPanel
+              totalEarned={stats.totalEarned}
+              rebirthCount={rebirthCount}
+              rebirthPoints={rebirthPoints}
+              ownedRebirthUpgrades={ownedRebirthUpgrades}
+              onRebirth={doRebirth}
+              onBuyRebirthUpgrade={buyRebirthUpgrade}
+              getMaxAffordableRebirth={getMaxAffordableRebirth}
+            />
             <BalanceDisplay balance={balance} />
             <p className="text-xs text-muted-foreground">
               +{ipc} IPC · {Math.floor(effectiveIncomePerSecond)}/s

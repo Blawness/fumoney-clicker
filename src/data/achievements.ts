@@ -11,6 +11,7 @@ import {
   Building2,
   PiggyBank,
   Coins,
+  RotateCcw,
 } from "lucide-react";
 import { UPGRADES_BUILDER, UPGRADES_FOUNDER, UPGRADES_INVESTOR } from "./upgrades";
 
@@ -20,7 +21,8 @@ export type AchievementCondition =
   | { type: "goal"; goalId: string }
   | { type: "all_builder" }
   | { type: "all_founder" }
-  | { type: "all_investor" };
+  | { type: "all_investor" }
+  | { type: "rebirth_count"; min: number };
 
 export interface Achievement {
   id: string;
@@ -44,6 +46,8 @@ export const ACHIEVEMENTS: (Achievement & { condition: AchievementCondition })[]
   { id: "all-builder-max", label: "All Builder Max", description: "Own every Builder upgrade", icon: Layers, condition: { type: "all_builder" } },
   { id: "all-founder-max", label: "All Founder Max", description: "Own every Founder upgrade", icon: Building2, condition: { type: "all_founder" } },
   { id: "all-investor-max", label: "All Investor Max", description: "Own every Investor upgrade", icon: TrendingUp, condition: { type: "all_investor" } },
+  { id: "first-rebirth", label: "First Rebirth", description: "Rebirth once", icon: RotateCcw, condition: { type: "rebirth_count", min: 1 } },
+  { id: "rebirth-5", label: "Rebirth 5x", description: "Rebirth 5 times", icon: RotateCcw, condition: { type: "rebirth_count", min: 5 } },
 ];
 
 export function checkAchievement(
@@ -53,6 +57,7 @@ export function checkAchievement(
     highestCombo: number;
     purchasedGoals: string[];
     ownedUpgrades: Record<string, number>;
+    rebirthCount?: number;
   }
 ): boolean {
   const c = achievement.condition;
@@ -69,6 +74,8 @@ export function checkAchievement(
       return UPGRADES_FOUNDER.every((u) => (ctx.ownedUpgrades[u.id] ?? 0) >= 1);
     case "all_investor":
       return UPGRADES_INVESTOR.every((u) => (ctx.ownedUpgrades[u.id] ?? 0) >= 1);
+    case "rebirth_count":
+      return (ctx.rebirthCount ?? 0) >= c.min;
     default:
       return false;
   }
@@ -81,6 +88,7 @@ export function getNewlyUnlocked(
     highestCombo: number;
     purchasedGoals: string[];
     ownedUpgrades: Record<string, number>;
+    rebirthCount?: number;
   }
 ): string[] {
   const set = new Set(currentUnlocked);

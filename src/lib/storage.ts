@@ -54,6 +54,12 @@ export interface GameSave {
   unlockedAchievements?: string[];
   /** Timestamp (ms) when save was last written – for offline progress */
   lastSaveTimestamp?: number;
+  /** Rebirth: number of times reborn */
+  rebirthCount?: number;
+  /** Rebirth: points available to spend on permanent upgrades */
+  rebirthPoints?: number;
+  /** Rebirth: level per permanent upgrade id */
+  ownedRebirthUpgrades?: Record<string, number>;
 }
 
 const DEFAULT_SAVE: GameSave = {
@@ -67,6 +73,9 @@ const DEFAULT_SAVE: GameSave = {
   stats: DEFAULT_STATS,
   unlockedAchievements: [],
   lastSaveTimestamp: 0,
+  rebirthCount: 0,
+  rebirthPoints: 0,
+  ownedRebirthUpgrades: {},
 };
 
 function normalizeStats(parsed: Partial<GameSave>): GameStats {
@@ -108,6 +117,12 @@ export function loadGame(): GameSave {
         : DEFAULT_SAVE.unlockedAchievements!,
       lastSaveTimestamp:
         typeof parsed.lastSaveTimestamp === "number" ? parsed.lastSaveTimestamp : 0,
+      rebirthCount: typeof parsed.rebirthCount === "number" ? parsed.rebirthCount : 0,
+      rebirthPoints: typeof parsed.rebirthPoints === "number" ? parsed.rebirthPoints : 0,
+      ownedRebirthUpgrades:
+        parsed.ownedRebirthUpgrades && typeof parsed.ownedRebirthUpgrades === "object"
+          ? parsed.ownedRebirthUpgrades
+          : {},
     };
   } catch {
     return DEFAULT_SAVE;
@@ -120,6 +135,9 @@ export function saveGame(save: GameSave): void {
     const toSave: GameSave = {
       ...save,
       lastSaveTimestamp: Date.now(),
+      rebirthCount: save.rebirthCount ?? 0,
+      rebirthPoints: save.rebirthPoints ?? 0,
+      ownedRebirthUpgrades: save.ownedRebirthUpgrades ?? {},
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
   } catch {
@@ -162,6 +180,9 @@ export function importGameFromJson(json: string): GameSave | null {
       stats: normalizeStats(s),
       unlockedAchievements: Array.isArray(s.unlockedAchievements) ? s.unlockedAchievements : DEFAULT_SAVE.unlockedAchievements!,
       lastSaveTimestamp: typeof s.lastSaveTimestamp === "number" ? s.lastSaveTimestamp : 0,
+      rebirthCount: typeof s.rebirthCount === "number" ? s.rebirthCount : 0,
+      rebirthPoints: typeof s.rebirthPoints === "number" ? s.rebirthPoints : 0,
+      ownedRebirthUpgrades: s.ownedRebirthUpgrades && typeof s.ownedRebirthUpgrades === "object" ? s.ownedRebirthUpgrades : {},
     };
   } catch {
     return null;

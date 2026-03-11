@@ -2,8 +2,16 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { loadGame, saveGame, type GameSave, DEFAULT_STATS, type GameStats } from "@/lib/storage";
+import { canRebirth, getRebirthPointsFromTotalEarned } from "@/lib/rebirth";
 import { getUpgradeCost, getTotalCostForMany, canBuyMore, getMaxLevel, UPGRADES } from "@/data/upgrades";
 import type { Upgrade } from "@/data/upgrades";
+import {
+  REBIRTH_UPGRADES,
+  getTotalRebirthCostForMany,
+  getRebirthMaxLevel,
+  canBuyMoreRebirth,
+} from "@/data/rebirthUpgrades";
+import type { RebirthUpgrade } from "@/data/rebirthUpgrades";
 import { GOALS } from "@/data/goals";
 import { getOfflineEarnings } from "@/lib/offlineEarnings";
 import { getNewlyUnlocked } from "@/data/achievements";
@@ -28,6 +36,9 @@ export function useGameState() {
   const [combo, setCombo] = useState(0);
   const [stats, setStats] = useState<GameStats>(DEFAULT_STATS);
   const [unlockedAchievements, setUnlockedAchievements] = useState<string[]>([]);
+  const [rebirthCount, setRebirthCount] = useState(0);
+  const [rebirthPoints, setRebirthPoints] = useState(0);
+  const [ownedRebirthUpgrades, setOwnedRebirthUpgrades] = useState<Record<string, number>>({});
   const [offlineEarned, setOfflineEarned] = useState(0);
   const lastClickTime = useRef(0);
   const comboRef = useRef(0);
@@ -52,10 +63,22 @@ export function useGameState() {
   );
   const incomeMultiplier = 1 + incomeMultiplierPercent / 100;
 
-  // Income per second: (base IPS * multiplier + auto clicks) * compound * income multiplier
-  const baseIncomePerSecond = ips * ipsMultiplier + acps * ipc;
+  // Rebirth permanent bonuses (%)
+  const rebirthIpcPercent = REBIRTH_UPGRADES.filter(
+    (u) => u.effectType === "rebirth_ipc_percent"
+  ).reduce((sum, u) => sum + (ownedRebirthUpgrades[u.id] ?? 0) * u.effectValue, 0);
+  const rebirthIpsPercent = REBIRTH_UPGRADES.filter(
+    (u) => u.effectType === "rebirth_ips_percent"
+  ).reduce((sum, u) => sum + (ownedRebirthUpgrades[u.id] ?? 0) * u.effectValue, 0);
+  const rebirthIncomeMultPercent = REBIRTH_UPGRADES.filter(
+    (u) => u.effectType === "rebirth_income_multiplier"
+  ).reduce((sum, u) => sum + (ownedRebirthUpgrades[u.id] ?? 0) * u.effectValue, 0);
+  const rebirthMultiplier = 1 + rebirthIncomeMultPercent / 100;
+
+  // Income per second: (base IPS * multiplier + auto clicks) * compound * income multiplier * rebirth
+  const baseIncomePerSecond = ips * (1 + rebirthIpsPercent / 100) * ipsMultiplier + acps * ipc;
   const effectiveIncomePerSecond =
-    baseIncomePerSecond * compoundMultiplier * incomeMultiplier;
+    baseIncomePerSecond * compoundMultiplier * incomeMultiplier * rebirthMultiplier;
 
   // Load once on mount + apply offline progress
   useEffect(() => {
@@ -73,6 +96,9 @@ export function useGameState() {
     setPurchasedGoals(save.purchasedGoals);
     setStats({ ...baseStats, totalEarned: baseStats.totalEarned + offlineAmount });
     setUnlockedAchievements(save.unlockedAchievements ?? []);
+    setRebirthCount(save.rebirthCount ?? 0);
+    setRebirthPoints(save.rebirthPoints ?? 0);
+    setOwnedRebirthUpgrades(save.ownedRebirthUpgrades ?? {});
     if (offlineAmount > 0) setOfflineEarned(offlineAmount);
     initialized.current = true;
   }, []);
@@ -91,10 +117,13 @@ export function useGameState() {
         purchasedGoals,
         stats,
         unlockedAchievements,
+        rebirthCount,
+        rebirthPoints,
+        ownedRebirthUpgrades,
       });
     }, SAVE_DEBOUNCE_MS);
     return () => clearTimeout(t);
-  }, [balance, ipc, ips, acps, compoundMultiplier, ownedUpgrades, purchasedGoals, stats, unlockedAchievements]);
+  }, [balance, ipc, ips, acps, compoundMultiplier, ownedUpgrades, purchasedGoals, stats, unlockedAchievements, rebirthCount, rebirthPoints, ownedRebirthUpgrades]);
 
   // Income tick every second
   useEffect(() => {
@@ -158,7 +187,8 @@ export function useGameState() {
     }, comboWindowMs);
 
     const multiplier = nextCombo <= 1 ? 1 : 1 + (nextCombo - 1) * comboStepBonus;
-    const reward = ipc * multiplier;
+    const effectiveIpc = ipc * (1 + rebirthIpcPercent / 100);
+    const reward = effectiveIpc * multiplier;
     setBalance((b) => b + reward);
     setStats((s) => ({
       ...s,
@@ -167,7 +197,7 @@ export function useGameState() {
       highestCombo: Math.max(s.highestCombo, nextCombo),
     }));
     return { value: reward, combo: nextCombo, multiplier };
-  }, [ipc, comboWindowMs, comboStepBonus]);
+  }, [ipc, rebirthIpcPercent, comboWindowMs, comboStepBonus]);
 
   const buyUpgrade = useCallback(
     (upgrade: Upgrade, quantity: number = 1) => {
@@ -214,6 +244,67 @@ export function useGameState() {
     [balance, ownedUpgrades]
   );
 
+  const doRebirth = useCallback(() => {
+    if (!canRebirth(stats.totalEarned)) return false;
+    const pointsToAdd = getRebirthPointsFromTotalEarned(stats.totalEarned);
+    setBalance(0);
+    setIpc(1);
+    setIps(0);
+    setAcps(0);
+    setCompoundMultiplier(1);
+    setOwnedUpgrades({});
+    setPurchasedGoals([]);
+    setCombo(0);
+    comboRef.current = 0;
+    setStats(DEFAULT_STATS);
+    setRebirthCount((c) => c + 1);
+    setRebirthPoints((p) => p + pointsToAdd);
+    const startingBalance = REBIRTH_UPGRADES.filter(
+      (u) => u.effectType === "rebirth_starting_balance"
+    ).reduce(
+      (sum, u) => sum + (ownedRebirthUpgrades[u.id] ?? 0) * u.effectValue,
+      0
+    );
+    if (startingBalance > 0) setBalance(startingBalance);
+    return true;
+  }, [stats.totalEarned, ownedRebirthUpgrades]);
+
+  const buyRebirthUpgrade = useCallback(
+    (upgrade: RebirthUpgrade, quantity: number = 1) => {
+      const owned = ownedRebirthUpgrades[upgrade.id] ?? 0;
+      const max = getRebirthMaxLevel(upgrade);
+      const maxBuy = max === 0 ? quantity : Math.min(quantity, max - owned);
+      if (maxBuy <= 0) return 0;
+      const cost = getTotalRebirthCostForMany(upgrade.baseCost, owned, maxBuy);
+      if (rebirthPoints < cost) return 0;
+      setRebirthPoints((p) => p - cost);
+      setOwnedRebirthUpgrades((prev) => ({
+        ...prev,
+        [upgrade.id]: owned + maxBuy,
+      }));
+      return maxBuy;
+    },
+    [rebirthPoints, ownedRebirthUpgrades]
+  );
+
+  const getMaxAffordableRebirth = useCallback(
+    (upgrade: RebirthUpgrade): number => {
+      const owned = ownedRebirthUpgrades[upgrade.id] ?? 0;
+      if (!canBuyMoreRebirth(upgrade, owned)) return 0;
+      const max = getRebirthMaxLevel(upgrade);
+      let n = 1;
+      while (true) {
+        const nextN = n + 1;
+        if (max > 0 && owned + nextN > max) break;
+        const cost = getTotalRebirthCostForMany(upgrade.baseCost, owned, nextN);
+        if (cost > rebirthPoints) break;
+        n = nextN;
+      }
+      return n;
+    },
+    [rebirthPoints, ownedRebirthUpgrades]
+  );
+
   // Achievement check: unlock any newly satisfied
   useEffect(() => {
     if (!initialized.current) return;
@@ -222,10 +313,11 @@ export function useGameState() {
       highestCombo: stats.highestCombo,
       purchasedGoals,
       ownedUpgrades,
+      rebirthCount,
     });
     if (added.length > 0)
       setUnlockedAchievements((prev) => [...prev, ...added]);
-  }, [stats.totalEarned, stats.highestCombo, purchasedGoals, ownedUpgrades, unlockedAchievements]);
+  }, [stats.totalEarned, stats.highestCombo, purchasedGoals, ownedUpgrades, unlockedAchievements, rebirthCount]);
 
   const buyGoal = useCallback(
     (goalId: string) => {
@@ -263,8 +355,11 @@ export function useGameState() {
     purchasedGoals,
     stats,
     unlockedAchievements,
+    rebirthCount,
+    rebirthPoints,
+    ownedRebirthUpgrades,
     lastSaveTimestamp: Date.now(),
-  }), [balance, ipc, ips, acps, compoundMultiplier, ownedUpgrades, purchasedGoals, stats, unlockedAchievements]);
+  }), [balance, ipc, ips, acps, compoundMultiplier, ownedUpgrades, purchasedGoals, stats, unlockedAchievements, rebirthCount, rebirthPoints, ownedRebirthUpgrades]);
 
   const replaceWithSave = useCallback((save: GameSave) => {
     setBalance(save.balance);
@@ -276,6 +371,9 @@ export function useGameState() {
     setPurchasedGoals(save.purchasedGoals ?? []);
     setStats(save.stats ?? DEFAULT_STATS);
     setUnlockedAchievements(save.unlockedAchievements ?? []);
+    setRebirthCount(save.rebirthCount ?? 0);
+    setRebirthPoints(save.rebirthPoints ?? 0);
+    setOwnedRebirthUpgrades(save.ownedRebirthUpgrades ?? {});
   }, []);
 
   return {
@@ -292,6 +390,9 @@ export function useGameState() {
     combo,
     stats,
     unlockedAchievements,
+    rebirthCount,
+    rebirthPoints,
+    ownedRebirthUpgrades,
     offlineEarned,
     clearOfflineBanner,
     getCurrentSave,
@@ -299,6 +400,9 @@ export function useGameState() {
     click,
     buyUpgrade,
     getMaxAffordable,
+    doRebirth,
+    buyRebirthUpgrade,
+    getMaxAffordableRebirth,
     buyGoal,
     getNextGoal,
     progressToNextGoal,
